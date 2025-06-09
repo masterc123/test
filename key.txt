@@ -1,55 +1,43 @@
-print("0: Script Start")
---// Services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-local VirtualUser = cloneref(game:GetService("VirtualUser"))
-local RunService = game:GetService("RunService")
-local GuiService = game:GetService("GuiService")
-local TeleportService = game:GetService("TeleportService")
-local UserInputService = game:GetService("UserInputService")
-local StarterGui = game:GetService("StarterGui")
-print("0: Script Start")
+type table = {
+	[any]: any
+}
 
---// Remotes
-local DataStream = ReplicatedStorage.GameEvents.DataStream
-local WeatherEventStarted = ReplicatedStorage.GameEvents.WeatherEventStarted
-
-local LocalPlayer = Players.LocalPlayer
-
---// Configuration
 _G.Configuration = {
-	Enabled = true,
-    DebugMode = false,
-	Webhook = "https://discord.com/api/webhooks/1381218107904884767/n42eBtWkgQc0GZQ3vM295xgrrdNH-WIKbgXtXFR_MVoZKyMNb4fHwsh3w2-8rdMJxUiR",
-	WeatherReporting = true,
-	AntiAFK = true,
-	AutoReconnect = true,
-	RenderingEnabled = true,
-	AlertLayouts = {
-		Weather = {
+	--// Reporting
+	["Enabled"] = true,
+	["Webhook"] = "https://discord.com/api/webhooks/1381218107904884767/n42eBtWkgQc0GZQ3vM295xgrrdNH-WIKbgXtXFR_MVoZKyMNb4fHwsh3w2-8rdMJxUiR", -- replace with your webhook url
+	["Weather Reporting"] = true,
+	
+	--// User
+	["Anti-AFK"] = true,
+	["Auto-Reconnect"] = true,
+	["Rendering Enabled"] = true,
+
+	--// Embeds
+	["AlertLayouts"] = {
+		["Weather"] = {
 			EmbedColor = Color3.fromRGB(42, 109, 255),
 		},
-		SeedsAndGears = {
+		["SeedsAndGears"] = {
 			EmbedColor = Color3.fromRGB(56, 238, 23),
 			Layout = {
 				["ROOT/SeedStock/Stocks"] = "SEEDS STOCK",
 				["ROOT/GearStock/Stocks"] = "GEAR STOCK"
 			}
 		},
-		EventShop = {
+		["EventShop"] = {
 			EmbedColor = Color3.fromRGB(212, 42, 255),
 			Layout = {
 				["ROOT/EventShopStock/Stocks"] = "EVENT STOCK"
 			}
 		},
-		Eggs = {
+		["Eggs"] = {
 			EmbedColor = Color3.fromRGB(251, 255, 14),
 			Layout = {
 				["ROOT/PetEggStock/Stocks"] = "EGG STOCK"
 			}
 		},
-		CosmeticStock = {
+		["CosmeticStock"] = {
 			EmbedColor = Color3.fromRGB(255, 106, 42),
 			Layout = {
 				["ROOT/CosmeticStock/ItemStocks"] = "COSMETIC ITEMS STOCK"
@@ -57,38 +45,62 @@ _G.Configuration = {
 		}
 	}
 }
-print("1: Configuration Loaded")
 
---// Helper Functions
+--// Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local VirtualUser = cloneref(game:GetService("VirtualUser"))
+local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
 
-local function DebugPrint(message)
-    if _G.Configuration.DebugMode then
-        print("[DEBUG] " .. message)
-    end
+--// Remotes
+local DataStream = ReplicatedStorage.GameEvents.DataStream -- RemoteEvent 
+local WeatherEventStarted = ReplicatedStorage.GameEvents.WeatherEventStarted -- RemoteEvent 
+
+local LocalPlayer = Players.LocalPlayer
+
+local function GetConfigValue(Key: string)
+	return _G.Configuration[Key]
 end
 
-local function ConvertColor3(Color)
-    DebugPrint("Calling ConvertColor3")
-	return tonumber(Color:ToHex(), 16)
+--// Set rendering enabled
+local Rendering = GetConfigValue("Rendering Enabled")
+RunService:Set3dRenderingEnabled(Rendering)
+
+--// Check if the script is already running
+if _G.StockBot then return end 
+_G.StockBot = true
+
+local function ConvertColor3(Color: Color3): number
+	local Hex = Color:ToHex()
+	return tonumber(Hex, 16)
 end
 
-local function GetDataPacket(Data, Target)
-    DebugPrint("Calling GetDataPacket")
-	for _, Packet in pairs(Data) do
-		if Packet[1] == Target then
-			return Packet[2]
+local function GetDataPacket(Data, Target: string)
+	for _, Packet in Data do
+		local Name = Packet[1]
+		local Content = Packet[2]
+
+		if Name == Target then
+			return Content
 		end
 	end
-	return nil
+
+	return 
 end
 
-local function GetLayout(Type)
-    return _G.Configuration.AlertLayouts[Type]
+local function GetLayout(Type: string)
+	local Layouts = GetConfigValue("AlertLayouts")
+	return Layouts[Type]
 end
 
 local function WebhookSend(Type: string, Fields: table)
-    DebugPrint("Calling WebhookSend with Type: " .. Type)
-	if not _G.Configuration.Enabled then return end
+	local Enabled = GetConfigValue("Enabled")
+	local Webhook = GetConfigValue("Webhook")
+
+	--// Check if reports are enabled
+	if not Enabled then return end
 
 	local Layout = GetLayout(Type)
 	if not Layout then return end
@@ -104,320 +116,115 @@ local function WebhookSend(Type: string, Fields: table)
 			author = { name = "Minxie & Clyde Stock Notifier – GAG™", icon_url = IconURL },
 			color = Color,
 			fields = Fields,
-			footer = {
-				text = "Created by depso" -- Please keep
-			},
+			footer = { text = "Created by Clyde | Powered by Minxie & Clyde", icon_url = IconURL },
 			timestamp = TimeStamp
 		}}
 	}
 
-    local RequestData = {
-        Url = GetConfigValue("Webhook"),
-        Method = "POST",
-        Headers = {
-            ["Content-Type"] = "application/json"
-        },
-        Body = HttpService:JSONEncode(Body)
-    }
-	
-    --// Send POST request to the webhook
-     task.spawn(request, RequestData)
-     DebugPrint("Webhook sent with http")
-         DebugPrint("Webhook sent successfully to " .. GetConfigValue("Webhook"))
-         Fluent:Notify({
-         Title = "Webhook Sent!",
-         Content = "Successfully sent " .. Type .. " alert to Discord.",
-         Duration = 3,
-         Color = Color3.fromRGB(56, 238, 23),
-         })
-	
+    	local RequestData = {
+        	Url = GetConfigValue("Webhook"),
+        	Method = "POST",
+        	Headers = {
+            	["Content-Type"] = "application/json"
+        	},
+        	Body = HttpService:JSONEncode(Body)
+    	}
+
+	--// Send POST request to the webhook
+	task.spawn(request, RequestData)
 end
 
-local function MakeStockString(Stock)
-    DebugPrint("Calling MakeStockString")
+local function MakeStockString(Stock: table): string
 	local String = ""
-	for Name, Data in pairs(Stock) do
-		local Display = Data.EggName or Name
-		String = String .. string.format("%s **x%d**\n", Display, Data.Stock or 0)
+	for Name, Data in Stock do 
+		local Amount = Data.Stock
+		local EggName = Data.EggName 
+
+		Name = EggName or Name
+		String ..= `{Name} **x{Amount}**\n`
 	end
+
 	return String
 end
 
-local function ProcessPacket(Data, Type, Layout)
-    DebugPrint("Calling ProcessPacket with Type: " .. Type)
+local function ProcessPacket(Data, Type: string, Layout)
 	local Fields = {}
-    for Packet, Title in pairs(Layout.Layout or {}) do
-        local Stock = GetDataPacket(Data, Packet)
-        if Stock then
-            table.insert(Fields, {
-                name = Title,
-                value = MakeStockString(Stock),
-                inline = true
-            })
-        end
-    end
-    WebhookSend(Type, Fields)
+	
+	local FieldsLayout = Layout.Layout
+	if not FieldsLayout then return end
+
+	for Packet, Title in FieldsLayout do 
+		local Stock = GetDataPacket(Data, Packet)
+		if not Stock then return end
+
+		local StockString = MakeStockString(Stock)
+		local Field = {
+			name = Title,
+			value = StockString,
+			inline = true
+		}
+
+		table.insert(Fields, Field)
+	end
+
+	WebhookSend(Type, Fields)
 end
 
---// Fluent UI Setup
-print("2: Attempting to load Fluent UI")
+DataStream.OnClientEvent:Connect(function(Type: string, Profile: string, Data: table)
+	if Type ~= "UpdateData" then return end
+	if not Profile:find(LocalPlayer.Name) then return end
 
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-
-if typeof(Fluent) == "table" and Fluent.CreateWindow then
-    print("2.1: Fluent UI Library loaded successfully.")
-else
-    local fluentError = "loadstring returned an unexpected value or nil for Fluent UI."
-    warn("Error loading Fluent UI library: " .. fluentError)
-	Fluent = nil
-end
-
--- Now, try to create the Fluent UI window and tabs ONLY if Fluent loaded successfully
-local Window, Tabs
-
-if Fluent then
-    Window = Fluent:CreateWindow({
-        Title = "Grow a Garden Stock Bot",
-        SubTitle = "by Clyde",
-        Size = UDim2.fromOffset(600, 480),
-        Theme = "Dark",
-        MinimizeKey = Enum.KeyCode.LeftControl
-    })
-
-    Tabs = {
-        Main = Window:AddTab({Title = "Stock Overview", Icon = "package"}),
-        Webhooks = Window:AddTab({Title = "Webhook Management", Icon = "server"}),
-        Settings = Window:AddTab({Title = "Settings", Icon = "settings"})
-    }
-
-     SaveManager:SetLibrary(Fluent)
-    InterfaceManager:SetLibrary(Fluent)
-
-    -- Ignore keys that are used by ThemeManager.
-    -- (we dont want configs to save themes, do we?)
-    SaveManager:IgnoreThemeSettings()
-
-    -- You can add indexes of elements the save manager should ignore
-    SaveManager:SetIgnoreIndexes({})
-
-    -- use case for doing it this way:
-    -- a script hub could have themes in a global folder
-    -- and game configs in a separate folder per game
-    InterfaceManager:SetFolder("FluentScriptHub")
-    SaveManager:SetFolder("FluentScriptHub/specific-game")
-
-    --InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-    --SaveManager:BuildConfigSection(Tabs.Settings)
-
-
-    Window:SelectTab(1)
-else
-	warn("Fluent UI failed to load, UI will not be displayed")
-end
-
--- Declare elements outside the conditional so functions can access them
-local webhookInput
-local webhookList
-local addWebhookBtn
-
-if Tabs then
-    --// Webhook Management Tab
-    Tabs.Webhooks:AddSection({Title = "Manage Discord Webhooks"})
-
-    webhookInput = Tabs.Webhooks:AddTextInput({
-        Placeholder = "Enter Discord Webhook URL",
-    })
-
-    webhookList = Tabs.Webhooks:AddList({})
-
-    addWebhookBtn = Tabs.Webhooks:AddButton({
-        Title = "Add Webhook",
-        Callback = function()
-            DebugPrint("Attempting to add webhook")
-            local url = webhookInput:GetText()
-            if url ~= "" and url:find("discord.com/api/webhooks") then
-                table.insert(_G.Configuration.Webhooks, url)
-                webhookInput:SetText("")
-                RefreshWebhookListUI()
-            else
-                warn("Invalid URL")
-            end
-        end
-    })
-
-     Tabs.Settings:AddSection({Title = "General Settings"})
-
-    Tabs.Settings:AddToggle({
-        Title = "Debug Mode",
-        Description = "Prints function calls to the output for debugging.",
-        CurrentValue = _G.Configuration.DebugMode,
-        Callback = function(value)
-            _G.Configuration.DebugMode = value
-            DebugPrint("Debug Mode set to: " .. tostring(value))
-        end
-    })
-
-        Fluent:Notify({
-        Title = "Fluent",
-        Content = "The script has been loaded.",
-        Duration = 8
-    })
-
-   
-    -- You can use the SaveManager:LoadAutoloadConfig() to load a config
-    -- which has been marked to be one that auto loads!
-   -- SaveManager:LoadAutoloadConfig()
-else
-        warn("No UI Library, can't add components")
-end
-
---// Stock Overview Tab
-
---// Will hold cards for each stock type
-local StockCards = {}
-
-local function RefreshStockUI(Data)
-    DebugPrint("Calling RefreshStockUI")
-	if not Fluent or not Window then return end
-    for stockType, layout in pairs(_G.Configuration.AlertLayouts) do
-        if layout.Layout then
-
-            for path, label in pairs(layout.Layout) do
-                local Stock = GetDataPacket(Data, path)
-                if Stock then
-                    for itemName, info in pairs(Stock) do
-                        local displayName = info.EggName or itemName
-                    end
-                end
-            end
-        end
-    end
-end
-
-local function RefreshWebhookListUI()
-    DebugPrint("Calling RefreshWebhookListUI")
-    webhookList:Clear()
-    for i, url in ipairs(_G.Configuration.Webhooks) do
-        local listItem = webhookList:AddListItem(url)
-        listItem:AddButton({
-            Title = "Remove",
-            Color = Color3.fromRGB(255, 70, 70),
-            Callback = function()
-                DebugPrint("Removing webhook: " .. url)
-                table.remove(_G.Configuration.Webhooks, i)
-                RefreshWebhookListUI()
-            end
-        })
-    end
-end
-
-if Tabs then
-    RefreshWebhookListUI()
-end
-
-print("3: UI Visibility Control Setup")
-
-local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and not UserInputService.GamepadEnabled
-
-if IsMobile then
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Size = UDim2.new(0, 50, 0, 50)
-    toggleButton.Position = UDim2.new(1, -60, 0, 10)
-    toggleButton.BackgroundColor3 = Color3.fromRGB(42, 109, 255)
-    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggleButton.Text = "⚙️"
-    toggleButton.Font = Enum.Font.SourceSansBold
-    toggleButton.TextSize = 24
-    toggleButton.ZIndex = 10
-
-    toggleButton.MouseButton1Click:Connect(function()
-        if Window then
-            Window:ToggleVisibility()
-        else
-            warn("Attempted to toggle visibility, but Window does not exist.")
-        end
-        DebugPrint("Mobile toggle button clicked.")
-    end)
-
-    local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-   playerGui then
-        toggleButton.Parent = playerGui
-    else
-        warn("PlayerGui not found after 10 seconds, cannot parent mobile toggle button.")
-    end
-else
-end
-print("4: UI Visibility Control Setup Complete")
-
-print("5: Event Connections Start")
-
---// Anti-AFK
-LocalPlayer.Idled:Connect(function()
-    DebugPrint("Player idled, checking AntiAFK")
-    if _G.Configuration.AntiAFK then
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
-        DebugPrint("AntiAFK activated.")
-    end
+	local Layouts = GetConfigValue("AlertLayouts")
+	for Name, Layout in Layouts do
+		ProcessPacket(Data, Name, Layout)
+	end
 end)
-print("6: Anti-AFK Connected")
 
---// Auto-Reconnect
+WeatherEventStarted.OnClientEvent:Connect(function(Event: string, Length: number)
+	--// Check if Weather reports are enabled
+	local WeatherReporting = GetConfigValue("Weather Reporting")
+	if not WeatherReporting then return end
+
+	--// Calculate end unix
+	local ServerTime = math.round(workspace:GetServerTimeNow())
+	local EndUnix = ServerTime + Length
+
+	WebhookSend("Weather", {
+		{
+			name = "WEATHER",
+			value = `{Event}\nEnds:<t:{EndUnix}:R>`,
+			inline = true
+		}
+	})
+end)
+
+--// Anti idle
+LocalPlayer.Idled:Connect(function()
+	--// Check if Anti-AFK is enabled
+	local AntiAFK = GetConfigValue("Anti-AFK")
+	if not AntiAFK then return end
+
+	VirtualUser:CaptureController()
+	VirtualUser:ClickButton2(Vector2.new())
+end)
+
+--// Auto reconnect
 GuiService.ErrorMessageChanged:Connect(function()
-    DebugPrint("ErrorMessageChanged detected, checking AutoReconnect")
-    if not _G.Configuration.AutoReconnect then return end
-
-    local IsSingle = #Players:GetPlayers() <= 1
-    local PlaceId = game.PlaceId
+	local IsSingle = #Players:GetPlayers() <= 1
+	local PlaceId = game.PlaceId
 	local JobId = game.JobId
 
-    queue_on_teleport("https://rawscripts.net/raw/Grow-a-Garden-Grow-a-Garden-Stock-bot-41500")
+	--// Check if Auto-Reconnect is enabled
+	local AutoReconnect = GetConfigValue("Auto-Reconnect")
+	if not AutoReconnect then return end
 
-    if IsSingle then
-        TeleportService:Teleport(PlaceId, LocalPlayer)
-        DebugPrint("Auto-reconnecting (single player teleport).")
-    else
-        TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer)
-        DebugPrint("Auto-reconnecting (multiplayer instance teleport).")
-    end
+	queue_on_teleport("https://gist.githubusercontent.com/depthso/7d9ec71436ccad0b4663c3baaba34f66/raw/5d7717a8da5590994bae698e0cef03fdb8bf42e5/Stockbot.lua")
+
+	--// Join a different server if the player is solo
+	if IsSingle then
+		TeleportService:Teleport(PlaceId, LocalPlayer)
+		return
+	end
+
+	TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer)
 end)
-print("7: Auto-Reconnect Connected")
-
---// Stock update event
-DataStream.OnClientEvent:Connect(function(Packet)
-    DebugPrint("DataStream.OnClientEvent received packet.")
-    if not _G.Configuration.Enabled then return end
-
-    local Data = Packet[2] or {}
-
-    --// Process and send webhook alerts for each stock type
-    for Type, Layout in pairs(_G.Configuration.AlertLayouts) do
-        if Layout.Layout then
-            ProcessPacket(Data, Type, Layout)
-        end
-    end
-
-    --// Update Fluent UI stock display
-    if _G.Configuration.RenderingEnabled then
-        RefreshStockUI(Data)
-    end
-end)
-print("8: DataStream Connected")
-
---// Weather event notification
-WeatherEventStarted.OnClientEvent:Connect(function(EventName)
-    DebugPrint("WeatherEventStarted received event: " .. EventName)
-    if not _G.Configuration.Enabled or not _G.Configuration.WeatherReporting then return end
-
-    local Fields = {{
-        name = "Weather Event Started",
-        value = EventName,
-        inline = false
-    }}
-    WebhookSend("Weather", Fields)
-end)
-print("9: WeatherEventStarted Connected")
-
-print("[Grow a Garden Stock Bot] Loaded and running with Fluent UI")
-DebugPrint("Script initialized.")
-
