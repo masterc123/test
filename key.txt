@@ -420,25 +420,3 @@ print("9: WeatherEventStarted Connected")
 print("[Grow a Garden Stock Bot] Loaded and running with Fluent UI")
 DebugPrint("Script initialized.")
 
-local function GetConfigValue(key)
-    return _G.Configuration[key]
-end
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-
-Window = Fluent:CreateWindow({
-    Title = "Grow a Garden Stock Bot",
-    SubTitle = "by Clyde",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(600, 480),
-    Acrylic = true, -- The blur may be detectable, setting this to false disables blur entirely
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl
-})
-
-Tabs = {
-    Main = Window:AddTab({Title = "Stock Overview", Icon = "package"}),
-    Webhooks = Window:AddTab({Title = "Webhook Management", Icon = "server"}),
-    Settings = Window:AddTab({Title = "Settings", Icon = "settings"})
-}
