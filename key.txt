@@ -206,12 +206,6 @@ RefreshWebhookListUI()
 
 print("3: UI Visibility Control Setup")
 
-if Window then
-    Window:BindShortcut(Enum.KeyCode.X, Enum.KeyCode.LeftControl)
-else
-    warn("Window not created, cannot bind shortcut.")
-end
-
 
 local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and not UserInputService.GamepadEnabled
 
