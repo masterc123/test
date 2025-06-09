@@ -10,41 +10,6 @@ local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
 print("0: Script Start")
 
--- Requires DeltaExecutor
-local function HttpPost(url, body)
-  if syn then
-    syn.request({
-      Url = url,
-      Method = "POST",
-      Headers = {
-        ["Content-Type"] = "application/json"
-      },
-      Body = body
-    })
-  elseif http then
-    http.request({
-      Url = url,
-      Method = "POST",
-      Headers = {
-        ["Content-Type"] = "application/json"
-      },
-      Body = body
-    })
-  elseif request then
-    request({
-      Url = url,
-      Method = "POST",
-      Headers = {
-        ["Content-Type"] = "application/json"
-      },
-      Body = body
-    })
-  else
-     warn("No http function found! Webhooks might not work.")
-  end
-end
-
-
 --// Remotes
 local DataStream = ReplicatedStorage.GameEvents.DataStream
 local WeatherEventStarted = ReplicatedStorage.GameEvents.WeatherEventStarted
@@ -55,9 +20,7 @@ local LocalPlayer = Players.LocalPlayer
 _G.Configuration = {
 	Enabled = true,
     DebugMode = false,
-	Webhooks = {
-		"https://discord.com/api/webhooks/1381218107904884767/n42eBtWkgQc0GZQ3vM295xgrrdNH-WIKbgXtXFR_MVoZKyMNb4fHwsh3w2-8rdMJxUiR"
-	},
+	Webhook = "https://discord.com/api/webhooks/1381218107904884767/n42eBtWkgQc0GZQ3vM295xgrrdNH-WIKbgXtXFR_MVoZKyMNb4fHwsh3w2-8rdMJxUiR",
 	WeatherReporting = true,
 	AntiAFK = true,
 	AutoReconnect = true,
@@ -118,12 +81,15 @@ local function GetDataPacket(Data, Target)
 	return nil
 end
 
+local function GetLayout(Type)
+    return _G.Configuration.AlertLayouts[Type]
+end
 
-local function WebhookSend(Type, Fields)
+local function WebhookSend(Type: string, Fields: table)
     DebugPrint("Calling WebhookSend with Type: " .. Type)
 	if not _G.Configuration.Enabled then return end
 
-	local Layout = _G.Configuration.AlertLayouts[Type]
+	local Layout = GetLayout(Type)
 	if not Layout then return end
 
 	local Color = ConvertColor3(Layout.EmbedColor)
@@ -137,32 +103,33 @@ local function WebhookSend(Type, Fields)
 			author = { name = "Minxie & Clyde Stock Notifier – GAG™", icon_url = IconURL },
 			color = Color,
 			fields = Fields,
-			footer = { text = "Created by Clyde | Powered by Minxie & Clyde", icon_url = IconURL },
+			footer = {
+				text = "Created by depso" -- Please keep
+			},
 			timestamp = TimeStamp
 		}}
 	}
 
-	for _, webhookUrl in ipairs(_G.Configuration.Webhooks) do
-		task.spawn(function()
-           local bodyJSON = HttpService:JSONEncode(Body)
-            DebugPrint("Sending webhook to " .. webhookUrl)
-			--game:GetService("HttpService"):PostAsync(
-			--	webhookUrl,
-			--	HttpService:JSONEncode(Body),
-			--	Enum.HttpContentType.ApplicationJson
-			--)
-           -- Local function call to use the defined executor
-            HttpPost(webhookUrl, bodyJSON)
-
-            DebugPrint("Webhook sent successfully to " .. webhookUrl)
-			Fluent:Notify({
-				Title = "Webhook Sent!",
-				Content = "Successfully sent " .. Type .. " alert to Discord.",
-				Duration = 3,
-				Color = Color3.fromRGB(56, 238, 23),
-			})
-		end)
-	end
+    local RequestData = {
+        Url = GetConfigValue("Webhook"),
+        Method = "POST",
+        Headers = {
+            ["Content-Type"] = "application/json"
+        },
+        Body = HttpService:JSONEncode(Body)
+    }
+	
+    --// Send POST request to the webhook
+     task.spawn(request, RequestData)
+     DebugPrint("Webhook sent with http")
+         DebugPrint("Webhook sent successfully to " .. GetConfigValue("Webhook"))
+         Fluent:Notify({
+         Title = "Webhook Sent!",
+         Content = "Successfully sent " .. Type .. " alert to Discord.",
+         Duration = 3,
+         Color = Color3.fromRGB(56, 238, 23),
+         })
+	
 end
 
 local function MakeStockString(Stock)
@@ -195,26 +162,113 @@ end
 print("2: Attempting to load Fluent UI")
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
-Window = Fluent:CreateWindow({
-    Title = "Grow a Garden Stock Bot",
-    SubTitle = "by Clyde",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(600, 480),
-    Acrylic = true, -- The blur may be detectable, setting this to false disables blur entirely
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl
-})
+if typeof(Fluent) == "table" and Fluent.CreateWindow then
+    print("2.1: Fluent UI Library loaded successfully.")
+else
+    local fluentError = "loadstring returned an unexpected value or nil for Fluent UI."
+    warn("Error loading Fluent UI library: " .. fluentError)
+	Fluent = nil
+end
 
-Tabs = {
-    Main = Window:AddTab({Title = "Stock Overview", Icon = "package"}),
-    Webhooks = Window:AddTab({Title = "Webhook Management", Icon = "server"}),
-    Settings = Window:AddTab({Title = "Settings", Icon = "settings"})
-}
+-- Now, try to create the Fluent UI window and tabs ONLY if Fluent loaded successfully
+local Window, Tabs
+
+if Fluent then
+    Window = Fluent:CreateWindow({
+        Title = "Grow a Garden Stock Bot",
+        SubTitle = "by Clyde",
+        Size = UDim2.fromOffset(600, 480),
+        Theme = "Dark",
+        MinimizeKey = Enum.KeyCode.LeftControl
+    })
+
+    Tabs = {
+        Main = Window:AddTab({Title = "Stock Overview", Icon = "package"}),
+        Webhooks = Window:AddTab({Title = "Webhook Management", Icon = "server"}),
+        Settings = Window:AddTab({Title = "Settings", Icon = "settings"})
+    }
+
+     SaveManager:SetLibrary(Fluent)
+    InterfaceManager:SetLibrary(Fluent)
+
+    -- Ignore keys that are used by ThemeManager.
+    -- (we dont want configs to save themes, do we?)
+    SaveManager:IgnoreThemeSettings()
+
+    -- You can add indexes of elements the save manager should ignore
+    SaveManager:SetIgnoreIndexes({})
+
+    -- use case for doing it this way:
+    -- a script hub could have themes in a global folder
+    -- and game configs in a separate folder per game
+    InterfaceManager:SetFolder("FluentScriptHub")
+    SaveManager:SetFolder("FluentScriptHub/specific-game")
+
+    --InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+    --SaveManager:BuildConfigSection(Tabs.Settings)
 
 
+    Window:SelectTab(1)
+else
+	warn("Fluent UI failed to load, UI will not be displayed")
+end
+
+-- Declare elements outside the conditional so functions can access them
+local webhookInput
+local webhookList
+local addWebhookBtn
+
+if Tabs then
+    --// Webhook Management Tab
+    Tabs.Webhooks:AddSection({Title = "Manage Discord Webhooks"})
+
+    webhookInput = Tabs.Webhooks:AddTextInput({
+        Placeholder = "Enter Discord Webhook URL",
+    })
+
+    webhookList = Tabs.Webhooks:AddList({})
+
+    addWebhookBtn = Tabs.Webhooks:AddButton({
+        Title = "Add Webhook",
+        Callback = function()
+            DebugPrint("Attempting to add webhook")
+            local url = webhookInput:GetText()
+            if url ~= "" and url:find("discord.com/api/webhooks") then
+                table.insert(_G.Configuration.Webhooks, url)
+                webhookInput:SetText("")
+                RefreshWebhookListUI()
+            else
+                warn("Invalid URL")
+            end
+        end
+    })
+
+     Tabs.Settings:AddSection({Title = "General Settings"})
+
+    Tabs.Settings:AddToggle({
+        Title = "Debug Mode",
+        Description = "Prints function calls to the output for debugging.",
+        CurrentValue = _G.Configuration.DebugMode,
+        Callback = function(value)
+            _G.Configuration.DebugMode = value
+            DebugPrint("Debug Mode set to: " .. tostring(value))
+        end
+    })
+
+        Fluent:Notify({
+        Title = "Fluent",
+        Content = "The script has been loaded.",
+        Duration = 8
+    })
+
+   
+    -- You can use the SaveManager:LoadAutoloadConfig() to load a config
+    -- which has been marked to be one that auto loads!
+   -- SaveManager:LoadAutoloadConfig()
+else
+        warn("No UI Library, can't add components")
+end
 
 --// Stock Overview Tab
 
@@ -241,18 +295,26 @@ end
 
 local function RefreshWebhookListUI()
     DebugPrint("Calling RefreshWebhookListUI")
+    webhookList:Clear()
+    for i, url in ipairs(_G.Configuration.Webhooks) do
+        local listItem = webhookList:AddListItem(url)
+        listItem:AddButton({
+            Title = "Remove",
+            Color = Color3.fromRGB(255, 70, 70),
+            Callback = function()
+                DebugPrint("Removing webhook: " .. url)
+                table.remove(_G.Configuration.Webhooks, i)
+                RefreshWebhookListUI()
+            end
+        })
+    end
 end
 
-RefreshWebhookListUI()
+if Tabs then
+    RefreshWebhookListUI()
+end
 
 print("3: UI Visibility Control Setup")
-
-if Window then
-    Window:BindShortcut(Enum.KeyCode.X, Enum.KeyCode.LeftControl)
-else
-    warn("Window not created, cannot bind shortcut.")
-end
-
 
 local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and not UserInputService.GamepadEnabled
 
@@ -277,7 +339,7 @@ if IsMobile then
     end)
 
     local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-    if playerGui then
+   playerGui then
         toggleButton.Parent = playerGui
     else
         warn("PlayerGui not found after 10 seconds, cannot parent mobile toggle button.")
@@ -285,12 +347,6 @@ if IsMobile then
 else
 end
 print("4: UI Visibility Control Setup Complete")
-
-if Window then
-    Window:Mount()
-else
-	warn("Window was not created, cannot mount.")
-end
 
 print("5: Event Connections Start")
 
@@ -364,14 +420,9 @@ print("9: WeatherEventStarted Connected")
 print("[Grow a Garden Stock Bot] Loaded and running with Fluent UI")
 DebugPrint("Script initialized.")
 
-
-
-
-
-
-
-
-
+local function GetConfigValue(key)
+    return _G.Configuration[key]
+end
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
@@ -391,50 +442,3 @@ Tabs = {
     Webhooks = Window:AddTab({Title = "Webhook Management", Icon = "server"}),
     Settings = Window:AddTab({Title = "Settings", Icon = "settings"})
 }
-
-print("3: UI Visibility Control Setup")
-
-if Window then
-    Window:BindShortcut(Enum.KeyCode.X, Enum.KeyCode.LeftControl)
-else
-    warn("Window not created, cannot bind shortcut.")
-end
-
-
-local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and not UserInputService.GamepadEnabled
-
-if IsMobile then
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Size = UDim2.new(0, 50, 0, 50)
-    toggleButton.Position = UDim2.new(1, -60, 0, 10)
-    toggleButton.BackgroundColor3 = Color3.fromRGB(42, 109, 255)
-    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggleButton.Text = "⚙️"
-    toggleButton.Font = Enum.Font.SourceSansBold
-    toggleButton.TextSize = 24
-    toggleButton.ZIndex = 10
-
-    toggleButton.MouseButton1Click:Connect(function()
-        if Window then
-            Window:ToggleVisibility()
-        else
-            warn("Attempted to toggle visibility, but Window does not exist.")
-        end
-        DebugPrint("Mobile toggle button clicked.")
-    end)
-
-    local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-   playerGui then
-        toggleButton.Parent = playerGui
-    else
-        warn("PlayerGui not found after 10 seconds, cannot parent mobile toggle button.")
-    end
-else
-end
-print("4: UI Visibility Control Setup Complete")
-
-if Window then
-    Window:Mount()
-else
-	warn("Window was not created, cannot mount.")
-end  if
