@@ -7,7 +7,7 @@ _G.Configuration = {
 	["Enabled"] = true,
 	["Webhook"] = "https://discord.com/api/webhooks/1381218107904884767/n42eBtWkgQc0GZQ3vM295xgrrdNH-WIKbgXtXFR_MVoZKyMNb4fHwsh3w2-8rdMJxUiR", -- replace with your webhook url
 	["Weather Reporting"] = true,
-	
+
 	--// User
 	["Anti-AFK"] = true,
 	["Auto-Reconnect"] = true,
@@ -55,8 +55,8 @@ local RunService = game:GetService("RunService")
 local GuiService = game:GetService("GuiService")
 
 --// Remotes
-local DataStream = ReplicatedStorage.GameEvents.DataStream -- RemoteEvent 
-local WeatherEventStarted = ReplicatedStorage.GameEvents.WeatherEventStarted -- RemoteEvent 
+local DataStream = ReplicatedStorage.GameEvents.DataStream -- RemoteEvent
+local WeatherEventStarted = ReplicatedStorage.GameEvents.WeatherEventStarted -- RemoteEvent
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -69,7 +69,7 @@ local Rendering = GetConfigValue("Rendering Enabled")
 RunService:Set3dRenderingEnabled(Rendering)
 
 --// Check if the script is already running
-if _G.StockBot then return end 
+if _G.StockBot then return end
 _G.StockBot = true
 
 local function ConvertColor3(Color: Color3): number
@@ -87,7 +87,7 @@ local function GetDataPacket(Data, Target: string)
 		end
 	end
 
-	return 
+	return
 end
 
 local function GetLayout(Type: string)
@@ -131,14 +131,17 @@ local function WebhookSend(Type: string, Fields: table)
     	}
 
 	--// Send POST request to the webhook
-	task.spawn(request, RequestData)
+	task.spawn(function()
+		request(RequestData)
+		print("Webhook triggered!") -- added print statement
+	end)
 end
 
 local function MakeStockString(Stock: table): string
 	local String = ""
-	for Name, Data in Stock do 
+	for Name, Data in Stock do
 		local Amount = Data.Stock
-		local EggName = Data.EggName 
+		local EggName = Data.EggName
 
 		Name = EggName or Name
 		String ..= `{Name} **x{Amount}**\n`
@@ -149,11 +152,11 @@ end
 
 local function ProcessPacket(Data, Type: string, Layout)
 	local Fields = {}
-	
+
 	local FieldsLayout = Layout.Layout
 	if not FieldsLayout then return end
 
-	for Packet, Title in FieldsLayout do 
+	for Packet, Title in FieldsLayout do
 		local Stock = GetDataPacket(Data, Packet)
 		if not Stock then return end
 
@@ -228,3 +231,5 @@ GuiService.ErrorMessageChanged:Connect(function()
 
 	TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer)
 end)
+
+print("Script executed successfully!") -- added print statement
