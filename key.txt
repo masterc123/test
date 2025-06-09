@@ -213,6 +213,7 @@ local Window, Tabs -- Declare them outside the pcall to be accessible
 local windowCreationSuccess, windowCreationErr
 
 if FluentLoadedSuccessfully then
+    print("FDDF")
     windowCreationSuccess, windowCreationErr = pcall(function()
         Window = Fluent:CreateWindow({
             Title = "Grow a Garden Stock Bot",
@@ -228,10 +229,12 @@ if FluentLoadedSuccessfully then
             Settings = Window:AddTab({Title = "Settings", Icon = "settings"}) --// New Settings Tab
         }
     end)
+    print(windowCreationSuccess)
 else
     windowCreationSuccess = false
     windowCreationErr = fluentError or "Fluent UI library failed to load, cannot create window."
 end
+
 
 if not windowCreationSuccess then
     warn("Error creating Fluent UI Window or Tabs: " .. tostring(windowCreationErr))
