@@ -114,14 +114,12 @@ local function WebhookSend(Type, Fields)
 				Enum.HttpContentType.ApplicationJson
 			)
             DebugPrint("Webhook sent successfully to " .. webhookUrl)
-			if Fluent and Fluent.Notify then
-				Fluent:Notify({
-					Title = "Webhook Sent!",
-					Content = "Successfully sent " .. Type .. " alert to Discord.",
-					Duration = 3,
-					Color = Color3.fromRGB(56, 238, 23),
-				})
-			end
+			Fluent:Notify({
+				Title = "Webhook Sent!",
+				Content = "Successfully sent " .. Type .. " alert to Discord.",
+				Duration = 3,
+				Color = Color3.fromRGB(56, 238, 23),
+			})
 		end)
 	end
 end
@@ -155,77 +153,26 @@ end
 --// Fluent UI Setup
 print("2: Attempting to load Fluent UI")
 
--- Try to load Fluent UI
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
-if typeof(Fluent) == "table" and Fluent.CreateWindow then
-    print("2.1: Fluent UI Library loaded successfully.")
-else
-    local fluentError = "loadstring returned an unexpected value or nil for Fluent UI."
-    warn("Error loading Fluent UI library: " .. fluentError)
-	Fluent = nil
-end
+Window = Fluent:CreateWindow({
+    Title = "Grow a Garden Stock Bot",
+    SubTitle = "by Clyde",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(600, 480),
+    Acrylic = true, -- The blur may be detectable, setting this to false disables blur entirely
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
 
--- Now, try to create the Fluent UI window and tabs ONLY if Fluent loaded successfully
-local Window, Tabs
+Tabs = {
+    Main = Window:AddTab({Title = "Stock Overview", Icon = "package"}),
+    Webhooks = Window:AddTab({Title = "Webhook Management", Icon = "server"}),
+    Settings = Window:AddTab({Title = "Settings", Icon = "settings"})
+}
 
-if Fluent then
-    Window = Fluent:CreateWindow({
-        Title = "Grow a Garden Stock Bot",
-        SubTitle = "by Clyde",
-        Size = UDim2.fromOffset(600, 480),
-        Theme = "Dark",
-        MinimizeKey = Enum.KeyCode.LeftControl
-    })
-
-    Tabs = {
-        Main = Window:AddTab({Title = "Stock Overview", Icon = "package"}),
-        Webhooks = Window:AddTab({Title = "Webhook Management", Icon = "server"}),
-        Settings = Window:AddTab({Title = "Settings", Icon = "settings"})
-    }
-    -- Addons:
-    -- SaveManager (Allows you to have a configuration system)
-    -- InterfaceManager (Allows you to have a interface managment system)
-
-    -- Hand the library over to our managers
-    SaveManager:SetLibrary(Fluent)
-    InterfaceManager:SetLibrary(Fluent)
-
-    -- Ignore keys that are used by ThemeManager.
-    -- (we dont want configs to save themes, do we?)
-    SaveManager:IgnoreThemeSettings()
-
-    -- You can add indexes of elements the save manager should ignore
-    SaveManager:SetIgnoreIndexes({})
-
-    -- use case for doing it this way:
-    -- a script hub could have themes in a global folder
-    -- and game configs in a separate folder per game
-    InterfaceManager:SetFolder("FluentScriptHub")
-    SaveManager:SetFolder("FluentScriptHub/specific-game")
-
-    InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-    SaveManager:BuildConfigSection(Tabs.Settings)
-
-    Window:SelectTab(1)
-
-	if Fluent and Fluent.Notify then
-		Fluent:Notify({
-			Title = "Fluent",
-			Content = "The script has been loaded.",
-			Duration = 8
-		})
-	end
-
-    -- You can use the SaveManager:LoadAutoloadConfig() to load a config
-    -- which has been marked to be one that auto loads!
-    SaveManager:LoadAutoloadConfig()
-
-else
-	warn("Fluent UI failed to load, UI will not be displayed")
-end
 
 
 --// Stock Overview Tab
@@ -375,3 +322,4 @@ print("9: WeatherEventStarted Connected")
 
 print("[Grow a Garden Stock Bot] Loaded and running with Fluent UI")
 DebugPrint("Script initialized.")
+
