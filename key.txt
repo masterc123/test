@@ -238,13 +238,6 @@ if IsMobile then
 else
 end
 print("4: UI Visibility Control Setup Complete")
-
-if Window then
-    Window:Mount()
-else
-	warn("Window was not created, cannot mount.")
-end
-
 print("5: Event Connections Start")
 
 --// Anti-AFK
