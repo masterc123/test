@@ -1,5 +1,707 @@
-Laser Tag ( RareLoot ) - DLC 47e1ab57-803a-45fe-8737-6f674b9ec809
-Monkeys! Add-On ( Hog5kull ) - Addon 778b9e42-bf61-446d-9ec1-5816e4a88e73
-Magical Weapons! ( Lua Studios ) - Addon 149a3409-23e0-4231-8c65-c4146bd35817
-SECRET DOORS Add-On ( Red Eagle Studios ) - Addon f06479e8-6c94-45e1-9067-fac72e911513
-test
+print("FDG")
+--[[
+    @author Clyde (clyde)
+    @description Grow a Garden stock bot script with Fluent UI (multiple Discord webhooks)
+    https://www.roblox.com/games/126884695634066
+]]
+
+--// Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local VirtualUser = cloneref(game:GetService("VirtualUser"))
+local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
+local TeleportService = game:GetService("TeleportService")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+print("0: Script Start") -- Debug print
+
+--// Remotes
+local DataStream = ReplicatedStorage.GameEvents.DataStream
+local WeatherEventStarted = ReplicatedStorage.GameEvents.WeatherEventStarted
+
+local LocalPlayer = Players.LocalPlayer
+
+--// Configuration
+_G.Configuration = {
+	Enabled = true,
+    DebugMode = false, --// New debug mode toggle
+	Webhooks = {
+		"https://discord.com/api/webhooks/1381218107904884767/n42eBtWkgQc0GZQ3vM295xgrrdNH-WIKbgXtXFR_MVoZKyMNb4fHwsh3w2-8rdMJxUiR"
+	},
+	WeatherReporting = true,
+	AntiAFK = true,
+	AutoReconnect = true,
+	RenderingEnabled = true,
+	AlertLayouts = {
+		Weather = {
+			EmbedColor = Color3.fromRGB(42, 109, 255),
+		},
+		SeedsAndGears = {
+			EmbedColor = Color3.fromRGB(56, 238, 23),
+			Layout = {
+				["ROOT/SeedStock/Stocks"] = "SEEDS STOCK",
+				["ROOT/GearStock/Stocks"] = "GEAR STOCK"
+			}
+		},
+		EventShop = {
+			EmbedColor = Color3.fromRGB(212, 42, 255),
+			Layout = {
+				["ROOT/EventShopStock/Stocks"] = "EVENT STOCK"
+			}
+		},
+		Eggs = {
+			EmbedColor = Color3.fromRGB(251, 255, 14),
+			Layout = {
+				["ROOT/PetEggStock/Stocks"] = "EGG STOCK"
+			}
+		},
+		CosmeticStock = {
+			EmbedColor = Color3.fromRGB(255, 106, 42),
+			Layout = {
+				["ROOT/CosmeticStock/ItemStocks"] = "COSMETIC ITEMS STOCK"
+			}
+		}
+	}
+}
+print("1: Configuration Loaded") -- Debug print
+
+--// Helper Functions
+
+local function DebugPrint(message)
+    if _G.Configuration.DebugMode then
+        print("[DEBUG] " .. message)
+    end
+end
+
+local function ConvertColor3(Color)
+    DebugPrint("Calling ConvertColor3")
+	return tonumber(Color:ToHex(), 16)
+end
+
+local function GetDataPacket(Data, Target)
+    DebugPrint("Calling GetDataPacket")
+	for _, Packet in pairs(Data) do
+		if Packet[1] == Target then
+			return Packet[2]
+		end
+	end
+	return nil
+end
+
+local function WebhookSend(Type, Fields)
+    DebugPrint("Calling WebhookSend with Type: " .. Type)
+	if not _G.Configuration.Enabled then return end
+
+	local Layout = _G.Configuration.AlertLayouts[Type]
+	if not Layout then return end
+
+	local Color = ConvertColor3(Layout.EmbedColor)
+	local TimeStamp = DateTime.now():ToIsoDate()
+	local IconURL = "https://lh3.googleusercontent.com/d/1q4tFzAVicFXq1S5DpBF7byQHZ7t_C3zH"
+
+	local Body = {
+		username = "Clyde Notifier",
+		avatar_url = IconURL,
+		embeds = {{
+			author = { name = "Minxie & Clyde Stock Notifier – GAG™", icon_url = IconURL },
+			color = Color,
+			fields = Fields,
+			footer = { text = "Created by Clyde | Powered by Minxie & Clyde", icon_url = IconURL },
+			timestamp = TimeStamp
+		}}
+	}
+
+	for _, webhookUrl in ipairs(_G.Configuration.Webhooks) do
+		task.spawn(function()
+			local success, err = pcall(function()
+				game:GetService("HttpService"):PostAsync(
+					webhookUrl,
+					HttpService:JSONEncode(Body),
+					Enum.HttpContentType.ApplicationJson
+				)
+			end)
+			if success then
+                DebugPrint("Webhook sent successfully to " .. webhookUrl)
+				Fluent:Notify({
+					Title = "Webhook Sent!",
+					Content = "Successfully sent " .. Type .. " alert to Discord.",
+					Duration = 3,
+					Color = Color3.fromRGB(56, 238, 23),
+				})
+			else
+				warn("Failed to send webhook to: " .. webhookUrl .. " Error: " .. tostring(err))
+				Fluent:Notify({
+					Title = "Webhook Failed!",
+					Content = "Failed to send " .. Type .. " alert to Discord: " .. tostring(err),
+					Duration = 5,
+					Color = Color3.fromRGB(255, 70, 70),
+				})
+			end
+		end)
+	end
+end
+
+local function MakeStockString(Stock)
+    DebugPrint("Calling MakeStockString")
+	local String = ""
+	for Name, Data in pairs(Stock) do
+		local Display = Data.EggName or Name
+		String = String .. string.format("%s **x%d**\n", Display, Data.Stock or 0)
+	end
+	return String
+end
+
+local function ProcessPacket(Data, Type, Layout)
+    DebugPrint("Calling ProcessPacket with Type: " .. Type)
+	local Fields = {}
+    local success, err = pcall(function()
+        for Packet, Title in pairs(Layout.Layout or {}) do
+            local Stock = GetDataPacket(Data, Packet)
+            if Stock then
+                table.insert(Fields, {
+                    name = Title,
+                    value = MakeStockString(Stock),
+                    inline = true
+                })
+            end
+        end
+        WebhookSend(Type, Fields)
+    end)
+    if not success then
+        warn("Error in ProcessPacket for Type " .. Type .. ": " .. tostring(err))
+        -- Fluent:Notify requires Fluent to be loaded, handle accordingly if Fluent failed earlier
+        if Fluent and Fluent.Notify then
+            Fluent:Notify({
+                Title = "Processing Error!",
+                Content = "Failed to process " .. Type .. " packet: " .. tostring(err),
+                Duration = 5,
+                Color = Color3.fromRGB(255, 150, 0),
+            })
+        end
+    end
+end
+
+--// Fluent UI Setup (using new recommended API style)
+print("2: Attempting to load Fluent UI") -- Debug print
+
+local FluentLoadedSuccessfully = false
+local Fluent, fluentError
+
+-- Try to load Fluent UI
+local pcallSuccess, pcallResult = pcall(function()
+    return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+end)
+
+if pcallSuccess then
+    if typeof(pcallResult) == "table" and pcallResult.CreateWindow then -- Basic check if it looks like a Fluent table
+        Fluent = pcallResult
+        FluentLoadedSuccessfully = true
+        print("2.1: Fluent UI Library loaded successfully.")
+    else
+        fluentError = "loadstring returned an unexpected value or nil for Fluent UI."
+        warn("Error loading Fluent UI library: " .. fluentError)
+    end
+else
+    fluentError = tostring(pcallResult) -- pcallResult is the error message
+    warn("Error executing loadstring for Fluent UI: " .. fluentError)
+end
+
+-- Now, try to create the Fluent UI window and tabs ONLY if Fluent loaded successfully
+local Window, Tabs -- Declare them outside the pcall to be accessible
+local windowCreationSuccess, windowCreationErr
+
+if FluentLoadedSuccessfully then
+    windowCreationSuccess, windowCreationErr = pcall(function()
+        Window = Fluent:CreateWindow({
+            Title = "Grow a Garden Stock Bot",
+            SubTitle = "by Clyde",
+            Size = UDim2.fromOffset(600, 480),
+            Theme = "Dark",
+            MinimizeKey = Enum.KeyCode.LeftControl
+        })
+
+        Tabs = {
+            Stock = Window:AddTab({Title = "Stock Overview", Icon = "package"}),
+            Webhooks = Window:AddTab({Title = "Webhook Management", Icon = "server"}),
+            Settings = Window:AddTab({Title = "Settings", Icon = "settings"}) --// New Settings Tab
+        }
+    end)
+else
+    windowCreationSuccess = false
+    windowCreationErr = fluentError or "Fluent UI library failed to load, cannot create window."
+end
+
+if not windowCreationSuccess then
+    warn("Error creating Fluent UI Window or Tabs: " .. tostring(windowCreationErr))
+    --// Attempt to display a basic message if Fluent UI creation failed
+    local messageGui = Instance.new("ScreenGui")
+    messageGui.Name = "FluentUI_Error_Message"
+    -- Check if RelativeToSibling is available, otherwise use Global or none
+    if Enum.ZIndexBehavior.RelativeToSibling then
+        messageGui.ZIndexBehavior = Enum.ZIndexBehavior.RelativeToSibling
+    else
+        messageGui.ZIndexBehavior = Enum.ZIndexBehavior.Global -- Fallback
+        warn("Enum.ZIndexBehavior.RelativeToSibling not found, using Global ZIndexBehavior.")
+    end
+    messageGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(0.5, 0, 0.1, 0)
+    textLabel.Position = UDim2.new(0.25, 0, 0.45, 0)
+    textLabel.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLabel.Text = "Error: Failed to load GUI. Check console for details. (" .. tostring(windowCreationErr) .. ")"
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.TextSize = 20
+    textLabel.Parent = messageGui
+    return -- Stop script execution if UI failed to load
+end
+
+
+--// Stock Overview Tab
+
+local StockSection = Tabs.Stock:AddSection({Title = "Current Stocks"})
+
+--// Will hold cards for each stock type
+local StockCards = {}
+
+local function RefreshStockUI(Data)
+    DebugPrint("Calling RefreshStockUI")
+    local success, err = pcall(function()
+        for stockType, layout in pairs(_G.Configuration.AlertLayouts) do
+            if layout.Layout then
+                --// Clear existing cards for this stockType
+                if StockCards[stockType] then
+                    for _, card in pairs(StockCards[stockType]) do
+                        card:Destroy()
+                    end
+                end
+                StockCards[stockType] = {}
+
+                for path, label in pairs(layout.Layout) do
+                    local stock = GetDataPacket(Data, path)
+                    if stock then
+                        for itemName, info in pairs(stock) do
+                            local displayName = info.EggName or itemName
+                            local cardCreationSuccess, cardCreationErr = pcall(function()
+                                return StockSection:AddCard({
+                                    Title = displayName,
+                                    Content = "Stock: " .. tostring(info.Stock or 0)
+                                })
+                            end)
+                            if cardCreationSuccess then
+                                table.insert(StockCards[stockType], cardCreationSuccess)
+                            else
+                                warn("Error adding stock card for " .. displayName .. ": " .. tostring(cardCreationErr))
+                                if Fluent and Fluent.Notify then
+                                    Fluent:Notify({
+                                        Title = "UI Update Error!",
+                                        Content = "Failed to display stock for " .. displayName .. ": " .. tostring(cardCreationErr),
+                                        Duration = 4,
+                                        Color = Color3.fromRGB(255, 150, 0),
+                                    })
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    if not success then
+        warn("Error refreshing Stock UI: " .. tostring(err))
+        if Fluent and Fluent.Notify then
+            Fluent:Notify({
+                Title = "UI Refresh Error!",
+                Content = "Failed to update stock display: " .. tostring(err),
+                Duration = 5,
+                Color = Color3.fromRGB(255, 150, 0),
+            })
+        end
+    end
+end
+
+--// Webhook Management Tab
+
+local WebhookSection = Tabs.Webhooks:AddSection({Title = "Manage Discord Webhooks"})
+
+local webhookInput = WebhookSection:AddTextInput({
+	Placeholder = "Enter Discord Webhook URL",
+})
+
+local webhookList = WebhookSection:AddList({})
+
+local function RefreshWebhookListUI()
+    DebugPrint("Calling RefreshWebhookListUI")
+    local success, err = pcall(function()
+        webhookList:Clear()
+        for i, url in ipairs(_G.Configuration.Webhooks) do
+            local listItem = webhookList:AddListItem(url)
+            local removeBtnSuccess, removeBtnErr = pcall(function()
+                return listItem:AddButton({
+                    Title = "Remove",
+                    Color = Color3.fromRGB(255, 70, 70),
+                    Callback = function()
+                        DebugPrint("Removing webhook: " .. url)
+                        table.remove(_G.Configuration.Webhooks, i)
+                        RefreshWebhookListUI()
+                    end
+                })
+            end)
+            if not removeBtnSuccess then
+                warn("Error adding remove button for webhook list item: " .. tostring(removeBtnErr))
+                if Fluent and Fluent.Notify then
+                    Fluent:Notify({
+                        Title = "UI Error!",
+                        Content = "Failed to add remove button for webhook: " .. tostring(removeBtnErr),
+                        Duration = 4,
+                        Color = Color3.fromRGB(255, 150, 0),
+                    })
+                end
+            end
+        end
+    end)
+    if not success then
+        warn("Error refreshing Webhook List UI: " .. tostring(err))
+        if Fluent and Fluent.Notify then
+            Fluent:Notify({
+                Title = "UI Refresh Error!",
+                Content = "Failed to update webhook list: " .. tostring(err),
+                Duration = 5,
+                Color = Color3.fromRGB(255, 150, 0),
+            })
+        end
+    end
+end
+
+RefreshWebhookListUI()
+
+local addWebhookBtn = WebhookSection:AddButton({
+	Title = "Add Webhook",
+	Callback = function()
+        DebugPrint("Attempting to add webhook")
+        local success, err = pcall(function()
+            local url = webhookInput:GetText()
+            if url ~= "" and url:find("discord.com/api/webhooks") then
+                table.insert(_G.Configuration.Webhooks, url)
+                webhookInput:SetText("")
+                RefreshWebhookListUI()
+                if Fluent and Fluent.Notify then
+                    Fluent:Notify({
+                        Title = "Webhook Added!",
+                        Content = "Webhook URL successfully added.",
+                        Duration = 3,
+                        Color = Color3.fromRGB(56, 238, 23),
+                    })
+                end
+            else
+                if Fluent and Fluent.Notify then
+                    Fluent:Notify({
+                        Title = "Invalid URL",
+                        Content = "Please enter a valid Discord webhook URL.",
+                        Duration = 5,
+                        Color = Color3.fromRGB(255, 150, 0),
+                    })
+                end
+            end
+        end)
+        if not success then
+            warn("Error in add webhook button callback: " .. tostring(err))
+            if Fluent and Fluent.Notify then
+                Fluent:Notify({
+                    Title = "Action Failed!",
+                    Content = "Failed to add webhook: " .. tostring(err),
+                    Duration = 5,
+                    Color = Color3.fromRGB(255, 70, 70),
+                })
+            end
+        end
+	end
+})
+print("2.5: UI Element Creation after Tabs") -- Debug print
+
+local SettingsSection = Tabs.Settings:AddSection({Title = "General Settings"})
+
+local success, err = pcall(function()
+    SettingsSection:AddToggle({
+        Title = "Debug Mode",
+        Description = "Prints function calls to the output for debugging.",
+        CurrentValue = _G.Configuration.DebugMode,
+        Callback = function(value)
+            _G.Configuration.DebugMode = value
+            DebugPrint("Debug Mode set to: " .. tostring(value))
+        end
+    })
+end)
+if not success then
+    warn("Error adding Debug Mode toggle to settings: " .. tostring(err))
+    if Fluent and Fluent.Notify then
+        Fluent:Notify({
+            Title = "UI Error!",
+            Content = "Failed to add Debug Mode toggle: " .. tostring(err),
+            Duration = 5,
+            Color = Color3.fromRGB(255, 150, 0),
+        })
+    end
+end
+
+print("3: UI Visibility Control Setup") -- Debug print
+--// Toggle UI visibility shortcut (Ctrl + X)
+if Window then -- Only bind shortcut if Window was successfully created
+    Window:BindShortcut(Enum.KeyCode.X, Enum.KeyCode.LeftControl)
+else
+    warn("Window not created, cannot bind shortcut.")
+end
+
+
+local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and not UserInputService.GamepadEnabled
+
+if IsMobile then
+    local success, err = pcall(function()
+        --// Create a button for mobile users
+        local toggleButton = Instance.new("TextButton")
+        toggleButton.Size = UDim2.new(0, 50, 0, 50)
+        toggleButton.Position = UDim2.new(1, -60, 0, 10) --// Top right corner
+        toggleButton.BackgroundColor3 = Color3.fromRGB(42, 109, 255)
+        toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        toggleButton.Text = "⚙️" --// Cog icon
+        toggleButton.Font = Enum.Font.SourceSansBold
+        toggleButton.TextSize = 24
+        toggleButton.ZIndex = 10 --// Ensure it's on top
+
+        toggleButton.MouseButton1Click:Connect(function()
+            local toggleSuccess, toggleErr = pcall(function()
+                if Window then -- Check if Window exists before toggling
+                    Window:ToggleVisibility()
+                else
+                    warn("Attempted to toggle visibility, but Window does not exist.")
+                    if Fluent and Fluent.Notify then
+                        Fluent:Notify({
+                            Title = "UI Toggle Error!",
+                            Content = "GUI window not found for toggling.",
+                            Duration = 3,
+                            Color = Color3.fromRGB(255, 150, 0),
+                        })
+                    end
+                end
+            end)
+            if not toggleSuccess then
+                warn("Error toggling window visibility: " .. tostring(toggleErr))
+                if Fluent and Fluent.Notify then
+                    Fluent:Notify({
+                        Title = "UI Toggle Error!",
+                        Content = "Failed to toggle GUI visibility: " .. tostring(toggleErr),
+                        Duration = 5,
+                        Color = Color3.fromRGB(255, 70, 70),
+                    })
+                end
+            end
+            DebugPrint("Mobile toggle button clicked.")
+        end)
+
+        -- Wait for PlayerGui to be available if it's not already
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10) -- 10-second timeout
+        if playerGui then
+            toggleButton.Parent = playerGui
+        else
+            warn("PlayerGui not found after 10 seconds, cannot parent mobile toggle button.")
+            if Fluent and Fluent.Notify then
+                 Fluent:Notify({
+                    Title = "UI Error!",
+                    Content = "Could not find PlayerGui to create mobile button.",
+                    Duration = 5,
+                    Color = Color3.fromRGB(255, 70, 70),
+                })
+            end
+        end
+
+
+        --// Add a small notification about the button
+        if Fluent and Fluent.Notify then
+            Fluent:Notify({
+                Title = "Mobile Controls",
+                Content = "Tap the gear icon on the top right to open/close the GUI.",
+                Duration = 7,
+                Color = Color3.fromRGB(42, 109, 255),
+            })
+        end
+    end)
+    if not success then
+        warn("Error setting up mobile UI button: " .. tostring(err))
+        --// Fallback notification if the mobile button itself failed to create
+        -- This notification won't use Fluent if Fluent failed to load earlier
+        print("Mobile UI Error: Failed to create mobile GUI toggle button: " .. tostring(err))
+    end
+else
+    --// Show notification for PC users about the keybind
+    local success, err = pcall(function()
+        if Fluent and Fluent.Notify then
+            Fluent:Notify({
+                Title = "GUI Keybind",
+                Content = "Press CTRL + X to open/close the GUI.",
+                Duration = 7,
+                Color = Color3.fromRGB(42, 109, 255),
+            })
+        end
+    end)
+    if not success then
+        warn("Error showing PC keybind notification: " .. tostring(err))
+    end
+end
+print("4: UI Visibility Control Setup Complete") -- Debug print
+
+--// Mount the window UI
+local mountSuccess, mountErr
+if Window then -- Only attempt to mount if Window was successfully created
+    mountSuccess, mountErr = pcall(function()
+        Window:Mount()
+    end)
+else
+    mountSuccess = false
+    mountErr = "Window object is nil, cannot mount."
+end
+
+if not mountSuccess then
+    warn("Error mounting Fluent UI Window: " .. tostring(mountErr))
+    if Fluent and Fluent.Notify then
+        Fluent:Notify({
+            Title = "UI Mount Error!",
+            Content = "Failed to mount the GUI window: " .. tostring(mountErr),
+            Duration = 5,
+            Color = Color3.fromRGB(255, 70, 70),
+        })
+    end
+    -- Do not return here unless you want the script to completely stop if mount fails.
+    -- The initial window creation check already handles a full exit if Fluent fails.
+end
+
+print("5: Event Connections Start") -- Debug print
+
+--// Anti-AFK
+LocalPlayer.Idled:Connect(function()
+    DebugPrint("Player idled, checking AntiAFK")
+    local success, err = pcall(function()
+        if _G.Configuration.AntiAFK then
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+            DebugPrint("AntiAFK activated.")
+        end
+    end)
+    if not success then
+        warn("Error in Anti-AFK routine: " .. tostring(err))
+        if Fluent and Fluent.Notify then
+            Fluent:Notify({
+                Title = "Anti-AFK Error!",
+                Content = "Anti-AFK routine encountered an error: " .. tostring(err),
+                Duration = 5,
+                Color = Color3.fromRGB(255, 150, 0),
+            })
+        end
+    end
+end)
+print("6: Anti-AFK Connected") -- Debug print
+
+--// Auto-Reconnect
+GuiService.ErrorMessageChanged:Connect(function()
+    DebugPrint("ErrorMessageChanged detected, checking AutoReconnect")
+    local success, err = pcall(function()
+        if not _G.Configuration.AutoReconnect then return end
+
+        local IsSingle = #Players:GetPlayers() <= 1
+        local PlaceId, JobId = game.PlaceId, game.JobId
+
+        queue_on_teleport("https://rawscripts.net/raw/Grow-a-Garden-Grow-a-Garden-Stock-bot-41500")
+
+        if IsSingle then
+            TeleportService:Teleport(PlaceId, LocalPlayer)
+            DebugPrint("Auto-reconnecting (single player teleport).")
+        else
+            TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer)
+            DebugPrint("Auto-reconnecting (multiplayer instance teleport).")
+        end
+    end)
+    if not success then
+        warn("Error in Auto-Reconnect routine: " .. tostring(err))
+        if Fluent and Fluent.Notify then
+            Fluent:Notify({
+                Title = "Auto-Reconnect Error!",
+                Content = "Auto-Reconnect routine encountered an error: " .. tostring(err),
+                Duration = 5,
+                Color = Color3.fromRGB(255, 70, 70),
+            })
+        end
+    end
+end)
+print("7: Auto-Reconnect Connected") -- Debug print
+
+--// Stock update event
+DataStream.OnClientEvent:Connect(function(Packet)
+    DebugPrint("DataStream.OnClientEvent received packet.")
+    local success, err = pcall(function()
+        if not _G.Configuration.Enabled then return end
+
+        local Data = Packet[2] or {}
+
+        --// Process and send webhook alerts for each stock type
+        for Type, Layout in pairs(_G.Configuration.AlertLayouts) do
+            if Layout.Layout then
+                ProcessPacket(Data, Type, Layout)
+            end
+        end
+
+        --// Update Fluent UI stock display
+        if _G.Configuration.RenderingEnabled then
+            RefreshStockUI(Data)
+        end
+    end)
+    if not success then
+        warn("Error processing DataStream event: " .. tostring(err))
+        if Fluent and Fluent.Notify then
+            Fluent:Notify({
+                Title = "DataStream Error!",
+                Content = "Failed to process incoming data: " .. tostring(err),
+                Duration = 5,
+                Color = Color3.fromRGB(255, 70, 70),
+            })
+        end
+    end
+end)
+print("8: DataStream Connected") -- Debug print
+
+--// Weather event notification
+WeatherEventStarted.OnClientEvent:Connect(function(EventName)
+    DebugPrint("WeatherEventStarted received event: " .. EventName)
+    local success, err = pcall(function()
+        if not _G.Configuration.Enabled or not _G.Configuration.WeatherReporting then return end
+
+        local Fields = {{
+            name = "Weather Event Started",
+            value = EventName,
+            inline = false
+        }}
+        WebhookSend("Weather", Fields)
+    end)
+    if not success then
+        warn("Error processing WeatherEventStarted: " .. tostring(err))
+        if Fluent and Fluent.Notify then
+            Fluent:Notify({
+                Title = "Weather Event Error!",
+                Content = "Failed to process weather event: " .. tostring(err),
+                Duration = 5,
+                Color = Color3.fromRGB(255, 70, 70),
+            })
+        end
+    end
+end)
+print("9: WeatherEventStarted Connected") -- Debug print
+
+-- Initialize UI with empty data (or last known state if desired)
+--RefreshStockUI({})
+
+print("[Grow a Garden Stock Bot] Loaded and running with Fluent UI")
+DebugPrint("Script initialized.")
+
+-- Return the window for possible external control or testing
+--return Window
