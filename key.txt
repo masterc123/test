@@ -238,24 +238,67 @@ if not windowCreationSuccess then
     --// Attempt to display a basic message if Fluent UI creation failed
     local messageGui = Instance.new("ScreenGui")
     messageGui.Name = "FluentUI_Error_Message"
-    -- Check if RelativeToSibling is available, otherwise use Global or none
-    if Enum.ZIndexBehavior.RelativeToSibling then
-        messageGui.ZIndexBehavior = Enum.ZIndexBehavior.RelativeToSibling
+
+    -- Determine ZIndexBehavior using pcall to safely access RelativeToSibling
+    local zIndexBehaviorValue = Enum.ZIndexBehavior.Global -- Default fallback
+
+    local success, result = pcall(function()
+        -- Attempt to return the RelativeToSibling value
+        return Enum.ZIndexBehavior.RelativeToSibling
+    end)
+
+    -- If the pcall succeeded and returned a non-nil value, use it
+    if success and result ~= nil then
+        zIndexBehaviorValue = result
+        -- No need to warn here, we successfully got the preferred value
     else
-        messageGui.ZIndexBehavior = Enum.ZIndexBehavior.Global -- Fallback
-        warn("Enum.ZIndexBehavior.RelativeToSibling not found, using Global ZIndexBehavior.")
+        -- If pcall failed or returned nil, we stick with the Global fallback
+        warn("Enum.ZIndexBehavior.RelativeToSibling not found or accessible, using Global ZIndexBehavior for error GUI.")
     end
-    messageGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    -- Assign the determined ZIndexBehavior (either RelativeToSibling or Global) using pcall
+    -- This handles potential issues during assignment itself, though less likely than access
+    local assignZIndexSuccess, assignZIndexErr = pcall(function()
+        messageGui.ZIndexBehavior = zIndexBehaviorValue
+    end)
+    if not assignZIndexSuccess then
+        warn("Failed to assign ZIndexBehavior to messageGui: " .. tostring(assignZIndexErr))
+        -- The GUI might still render with a default ZIndexBehavior even if this fails
+    end
+
+
+    -- Wait for PlayerGui and parent using pcall
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10) -- 10-second timeout
+    if playerGui then
+        local guiParentSuccess, guiParentErr = pcall(function()
+             messageGui.Parent = playerGui
+        end)
+        if not guiParentSuccess then
+            warn("Failed to parent error message GUI to PlayerGui: " .. tostring(guiParentErr))
+             -- The GUI exists but won't be visible if parenting fails
+        end
+    else
+        warn("PlayerGui not found after 10 seconds, cannot parent error message GUI.")
+        -- The GUI object exists but won't be visible if not parented
+    end
 
     local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(0.5, 0, 0.1, 0)
-    textLabel.Position = UDim2.new(0.25, 0, 0.45, 0)
+    textLabel.Size = UDim2.new(0.8, 0, 0.2, 0) -- Made it wider as in the previous fix
+    textLabel.Position = UDim2.new(0.1, 0, 0.4, 0) -- Centered it better
     textLabel.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+    textLabel.BackgroundTransparency = 0.1
+    textLabel.BorderColor3 = Color3.fromRGB(255, 50, 50)
+    textLabel.BorderSizePixel = 2
     textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textLabel.Text = "Error: Failed to load GUI. Check console for details. (" .. tostring(windowCreationErr) .. ")"
+    textLabel.TextWrapped = true -- Wrap long text
+    textLabel.TextXAlignment = Enum.TextXAlignment.Center
+    textLabel.TextYAlignment = Enum.TextYAlignment.Center
+    textLabel.Text = "Error loading script GUI:\n" .. tostring(windowCreationErr) .. "\n\nCheck console (F9) for more details."
     textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.TextSize = 20
-    textLabel.Parent = messageGui
+    textLabel.TextSize = 18
+    textLabel.Parent = messageGui -- Parent the text label to the ScreenGui
+
+    -- Keep the return statement if you want the script to stop if UI creation fails
     return -- Stop script execution if UI failed to load
 end
 
