@@ -114,12 +114,14 @@ local function WebhookSend(Type, Fields)
 				Enum.HttpContentType.ApplicationJson
 			)
             DebugPrint("Webhook sent successfully to " .. webhookUrl)
-			Fluent:Notify({
-				Title = "Webhook Sent!",
-				Content = "Successfully sent " .. Type .. " alert to Discord.",
-				Duration = 3,
-				Color = Color3.fromRGB(56, 238, 23),
-			})
+			if Fluent and Fluent.Notify then
+				Fluent:Notify({
+					Title = "Webhook Sent!",
+					Content = "Successfully sent " .. Type .. " alert to Discord.",
+					Duration = 3,
+					Color = Color3.fromRGB(56, 238, 23),
+				})
+			end
 		end)
 	end
 end
@@ -155,6 +157,8 @@ print("2: Attempting to load Fluent UI")
 
 -- Try to load Fluent UI
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 if typeof(Fluent) == "table" and Fluent.CreateWindow then
     print("2.1: Fluent UI Library loaded successfully.")
@@ -177,10 +181,48 @@ if Fluent then
     })
 
     Tabs = {
-        Stock = Window:AddTab({Title = "Stock Overview", Icon = "package"}),
+        Main = Window:AddTab({Title = "Stock Overview", Icon = "package"}),
         Webhooks = Window:AddTab({Title = "Webhook Management", Icon = "server"}),
         Settings = Window:AddTab({Title = "Settings", Icon = "settings"})
     }
+    -- Addons:
+    -- SaveManager (Allows you to have a configuration system)
+    -- InterfaceManager (Allows you to have a interface managment system)
+
+    -- Hand the library over to our managers
+    SaveManager:SetLibrary(Fluent)
+    InterfaceManager:SetLibrary(Fluent)
+
+    -- Ignore keys that are used by ThemeManager.
+    -- (we dont want configs to save themes, do we?)
+    SaveManager:IgnoreThemeSettings()
+
+    -- You can add indexes of elements the save manager should ignore
+    SaveManager:SetIgnoreIndexes({})
+
+    -- use case for doing it this way:
+    -- a script hub could have themes in a global folder
+    -- and game configs in a separate folder per game
+    InterfaceManager:SetFolder("FluentScriptHub")
+    SaveManager:SetFolder("FluentScriptHub/specific-game")
+
+    InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+    SaveManager:BuildConfigSection(Tabs.Settings)
+
+    Window:SelectTab(1)
+
+	if Fluent and Fluent.Notify then
+		Fluent:Notify({
+			Title = "Fluent",
+			Content = "The script has been loaded.",
+			Duration = 8
+		})
+	end
+
+    -- You can use the SaveManager:LoadAutoloadConfig() to load a config
+    -- which has been marked to be one that auto loads!
+    SaveManager:LoadAutoloadConfig()
+
 else
 	warn("Fluent UI failed to load, UI will not be displayed")
 end
