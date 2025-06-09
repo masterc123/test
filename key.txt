@@ -96,45 +96,48 @@ local function GetLayout(Type: string)
 end
 
 local function WebhookSend(Type: string, Fields: table)
-	local Enabled = GetConfigValue("Enabled")
-	local Webhook = GetConfigValue("Webhook")
+    local Enabled = GetConfigValue("Enabled")
+    local Webhook = GetConfigValue("Webhook")
 
-	--// Check if reports are enabled
-	if not Enabled then return end
+    --// Check if reports are enabled
+    if not Enabled then return end
 
-	local Layout = GetLayout(Type)
-	if not Layout then return end
+    local Layout = GetLayout(Type)
+    local Color = ConvertColor3(Layout.EmbedColor)
 
-	local Color = ConvertColor3(Layout.EmbedColor)
-	local TimeStamp = DateTime.now():ToIsoDate()
-	local IconURL = "https://lh3.googleusercontent.com/d/1q4tFzAVicFXq1S5DpBF7byQHZ7t_C3zH"
+    --// Webhook data
+    local TimeStamp = DateTime.now():ToIsoDate()
+    local IconURL = "https://lh3.googleusercontent.com/d/1q4tFzAVicFXq1S5DpBF7byQHZ7t_C3zH"
 
-	local Body = {
-		username = "Clyde Notifier",
-		avatar_url = IconURL,
-		embeds = {{
-			author = { name = "Minxie & Clyde Stock Notifier – GAG™", icon_url = IconURL },
-			color = Color,
-			fields = Fields,
-			footer = { text = "Created by Clyde | Powered by Minxie & Clyde", icon_url = IconURL },
-			timestamp = TimeStamp
-		}}
-	}
+    local Body = {
+        username = "Clyde Notifier", 
+        avatar_url = IconURL,         
+        embeds = {
+            {
+                author = { name = "Minxie & Clyde Stock Notifier – GAG™", icon_url = IconURL }, --NEW
+                color = Color,
+                fields = Fields,
+                footer = {
+                    text = "Created by Clyde | Powered by Minxie & Clyde",
+					icon_url = IconURL 
+                },
+                timestamp = TimeStamp
+            }
+        }
+    }
 
-    	local RequestData = {
-        	Url = GetConfigValue("Webhook"),
-        	Method = "POST",
-        	Headers = {
-            	["Content-Type"] = "application/json"
-        	},
-        	Body = HttpService:JSONEncode(Body)
-    	}
+    local RequestData = {
+        Url = Webhook,
+        Method = "POST",
+        Headers = {
+            ["Content-Type"] = "application/json"
+        },
+        Body = HttpService:JSONEncode(Body)
+    }
 
-	--// Send POST request to the webhook
-	task.spawn(function()
-		request(RequestData)
-		print("Webhook triggered!") -- added print statement
-	end)
+    --// Send POST request to the webhook
+    print("Webhook triggered!") -- added print statement
+    task.spawn(request, RequestData)
 end
 
 local function MakeStockString(Stock: table): string
