@@ -1,3 +1,15 @@
+--// Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local VirtualUser = cloneref(game:GetService("VirtualUser"))
+local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
+local TeleportService = game:GetService("TeleportService")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+print("0: Script Start")
+
 -- Requires DeltaExecutor
 local function HttpPost(url, body)
   if syn then
@@ -32,17 +44,6 @@ local function HttpPost(url, body)
   end
 end
 
---// Services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-local VirtualUser = cloneref(game:GetService("VirtualUser"))
-local RunService = game:GetService("RunService")
-local GuiService = game:GetService("GuiService")
-local TeleportService = game:GetService("TeleportService")
-local UserInputService = game:GetService("UserInputService")
-local StarterGui = game:GetService("StarterGui")
-print("0: Script Start")
 
 --// Remotes
 local DataStream = ReplicatedStorage.GameEvents.DataStream
@@ -116,6 +117,7 @@ local function GetDataPacket(Data, Target)
 	end
 	return nil
 end
+
 
 local function WebhookSend(Type, Fields)
     DebugPrint("Calling WebhookSend with Type: " .. Type)
@@ -214,50 +216,6 @@ Tabs = {
 
 
 
-
--- Declare elements outside the conditional so functions can access them
-local webhookInput
-local webhookList
-local addWebhookBtn
-
-if Tabs then
-    --// Webhook Management Tab
-    Tabs.Webhooks:AddSection({Title = "Manage Discord Webhooks"})
-
-    webhookInput = Tabs.Webhooks:AddTextInput({
-        Placeholder = "Enter Discord Webhook URL",
-    })
-
-    webhookList = Tabs.Webhooks:AddList({})
-
-    addWebhookBtn = Tabs.Webhooks:AddButton({
-        Title = "Add Webhook",
-        Callback = function()
-            DebugPrint("Attempting to add webhook")
-            local url = webhookInput:GetText()
-            if url ~= "" and url:find("discord.com/api/webhooks") then
-                table.insert(_G.Configuration.Webhooks, url)
-                webhookInput:SetText("")
-                RefreshWebhookListUI()
-            else
-                warn("Invalid URL")
-            end
-        end
-    })
-
-        Tabs.Settings:AddSection({Title = "General Settings"})
-
-    Tabs.Settings:AddToggle({
-        Title = "Debug Mode",
-        Description = "Prints function calls to the output for debugging.",
-        CurrentValue = _G.Configuration.DebugMode,
-        Callback = function(value)
-            _G.Configuration.DebugMode = value
-            DebugPrint("Debug Mode set to: " .. tostring(value))
-        end
-    })
-end
-
 --// Stock Overview Tab
 
 --// Will hold cards for each stock type
@@ -283,26 +241,18 @@ end
 
 local function RefreshWebhookListUI()
     DebugPrint("Calling RefreshWebhookListUI")
-    webhookList:Clear()
-    for i, url in ipairs(_G.Configuration.Webhooks) do
-        local listItem = webhookList:AddListItem(url)
-        listItem:AddButton({
-            Title = "Remove",
-            Color = Color3.fromRGB(255, 70, 70),
-            Callback = function()
-                DebugPrint("Removing webhook: " .. url)
-                table.remove(_G.Configuration.Webhooks, i)
-                RefreshWebhookListUI()
-            end
-        })
-    end
 end
 
-if Tabs then
-    RefreshWebhookListUI()
-end
+RefreshWebhookListUI()
 
 print("3: UI Visibility Control Setup")
+
+if Window then
+    Window:BindShortcut(Enum.KeyCode.X, Enum.KeyCode.LeftControl)
+else
+    warn("Window not created, cannot bind shortcut.")
+end
+
 
 local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and not UserInputService.GamepadEnabled
 
@@ -335,6 +285,12 @@ if IsMobile then
 else
 end
 print("4: UI Visibility Control Setup Complete")
+
+if Window then
+    Window:Mount()
+else
+	warn("Window was not created, cannot mount.")
+end
 
 print("5: Event Connections Start")
 
@@ -407,3 +363,78 @@ print("9: WeatherEventStarted Connected")
 
 print("[Grow a Garden Stock Bot] Loaded and running with Fluent UI")
 DebugPrint("Script initialized.")
+
+
+
+
+
+
+
+
+
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+Window = Fluent:CreateWindow({
+    Title = "Grow a Garden Stock Bot",
+    SubTitle = "by Clyde",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(600, 480),
+    Acrylic = true, -- The blur may be detectable, setting this to false disables blur entirely
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+Tabs = {
+    Main = Window:AddTab({Title = "Stock Overview", Icon = "package"}),
+    Webhooks = Window:AddTab({Title = "Webhook Management", Icon = "server"}),
+    Settings = Window:AddTab({Title = "Settings", Icon = "settings"})
+}
+
+print("3: UI Visibility Control Setup")
+
+if Window then
+    Window:BindShortcut(Enum.KeyCode.X, Enum.KeyCode.LeftControl)
+else
+    warn("Window not created, cannot bind shortcut.")
+end
+
+
+local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and not UserInputService.GamepadEnabled
+
+if IsMobile then
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Size = UDim2.new(0, 50, 0, 50)
+    toggleButton.Position = UDim2.new(1, -60, 0, 10)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(42, 109, 255)
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.Text = "⚙️"
+    toggleButton.Font = Enum.Font.SourceSansBold
+    toggleButton.TextSize = 24
+    toggleButton.ZIndex = 10
+
+    toggleButton.MouseButton1Click:Connect(function()
+        if Window then
+            Window:ToggleVisibility()
+        else
+            warn("Attempted to toggle visibility, but Window does not exist.")
+        end
+        DebugPrint("Mobile toggle button clicked.")
+    end)
+
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+   playerGui then
+        toggleButton.Parent = playerGui
+    else
+        warn("PlayerGui not found after 10 seconds, cannot parent mobile toggle button.")
+    end
+else
+end
+print("4: UI Visibility Control Setup Complete")
+
+if Window then
+    Window:Mount()
+else
+	warn("Window was not created, cannot mount.")
+end  if
